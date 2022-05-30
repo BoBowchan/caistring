@@ -1,8 +1,15 @@
 %lang starknet
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin
-from starkware.cairo.common.math import (unsigned_div_rem, sign, assert_nn, abs_value, assert_not_zero, sqrt)
-from starkware.cairo.common.math_cmp import (is_nn, is_le, is_not_zero)
+from starkware.cairo.common.math import (
+    unsigned_div_rem,
+    sign,
+    assert_nn,
+    abs_value,
+    assert_not_zero,
+    sqrt,
+)
+from starkware.cairo.common.math_cmp import is_nn, is_le, is_not_zero
 from starkware.cairo.common.registers import get_label_location
 from starkware.cairo.common.memcpy import memcpy
 from starkware.cairo.common.alloc import alloc
@@ -21,16 +28,11 @@ end
 # Concatenante two literals (literal1 + literal2)
 # (function does not check if final length <= 31 char)
 #
-func literal_concat_known_length_dangerous {} (
-        literal1 : felt,
-        literal2 : felt,
-        len2 : felt
-    ) -> (
-        res : felt
-    ):
-
+func literal_concat_known_length_dangerous{}(literal1 : felt, literal2 : felt, len2 : felt) -> (
+    res : felt
+):
     # left shift literal1 by 256^len2 = 2^(8*len2) = multiply by pow2(8*len2)
-    let (multiplier) = pow2 (8 * len2)
+    let (multiplier) = pow2(8 * len2)
     let res = literal1 * multiplier + literal2
 
     return (res)
@@ -39,88 +41,45 @@ end
 #
 # Concatenate two strings
 #
-func str_concat {range_check_ptr} (
-        str1 : Str,
-        str2 : Str
-    ) -> (
-        res : Str
-    ):
-
-    let (
-        arr_res_len : felt,
-        arr_res : felt*
-    ) = array_concat (
-        arr1_len = str1.arr_len,
-        arr1 = str1.arr,
-        arr2_len = str2.arr_len,
-        arr2 = str2.arr
+func str_concat{range_check_ptr}(str1 : Str, str2 : Str) -> (res : Str):
+    let (arr_res_len : felt, arr_res : felt*) = array_concat(
+        arr1_len=str1.arr_len, arr1=str1.arr, arr2_len=str2.arr_len, arr2=str2.arr
     )
 
-    return ( Str(arr_res_len, arr_res) )
+    return (Str(arr_res_len, arr_res))
 end
 
 #
 # Concatenate an array of Str's into one Str
 #
-func str_concat_array {range_check_ptr} (
-        arr_str_len : felt,
-        arr_str : Str*
-    ) -> (
-        res : Str
-    ):
+func str_concat_array{range_check_ptr}(arr_str_len : felt, arr_str : Str*) -> (res : Str):
     alloc_locals
 
     let (arr_init) = alloc()
-    let (arr_len, arr) = _recurse_str_concat_array (
-        arr_str_len = arr_str_len,
-        arr_str = arr_str,
-        arr_len = 0,
-        arr = arr_init,
-        idx = 0
+    let (arr_len, arr) = _recurse_str_concat_array(
+        arr_str_len=arr_str_len, arr_str=arr_str, arr_len=0, arr=arr_init, idx=0
     )
 
-    let res = Str (arr_len, arr)
+    let res = Str(arr_len, arr)
     return (res)
 end
 
-
-func _recurse_str_concat_array {range_check_ptr} (
-        arr_str_len : felt,
-        arr_str : Str*,
-        arr_len : felt,
-        arr : felt*,
-        idx : felt
-    ) -> (
-        arr_final_len : felt,
-        arr_final : felt*
-    ):
-
+func _recurse_str_concat_array{range_check_ptr}(
+    arr_str_len : felt, arr_str : Str*, arr_len : felt, arr : felt*, idx : felt
+) -> (arr_final_len : felt, arr_final : felt*):
     if idx == arr_str_len:
         return (arr_len, arr)
     end
 
-    let (
-        arr_nxt_len : felt,
-        arr_nxt : felt*
-    ) = array_concat (
-        arr1_len = arr_len,
-        arr1 = arr,
-        arr2_len = arr_str[idx].arr_len,
-        arr2 = arr_str[idx].arr
+    let (arr_nxt_len : felt, arr_nxt : felt*) = array_concat(
+        arr1_len=arr_len, arr1=arr, arr2_len=arr_str[idx].arr_len, arr2=arr_str[idx].arr
     )
 
     #
     # Tail recursion
     #
-    let (
-        arr_final_len : felt,
-        arr_final : felt*
-    ) = _recurse_str_concat_array (
-        arr_str_len = arr_str_len,
-        arr_str = arr_str,
-        arr_len = arr_nxt_len,
-        arr = arr_nxt,
-        idx = idx + 1
+    let (arr_final_len : felt, arr_final : felt*) = _recurse_str_concat_array(
+        arr_str_len=arr_str_len, arr_str=arr_str, arr_len=arr_nxt_len, arr=arr_nxt, idx=idx + 1
     )
 
     return (arr_final_len, arr_final)
@@ -129,51 +88,40 @@ end
 #
 # Create an instance of Str from single-felt string literal
 #
-func str_from_literal {range_check_ptr} (
-    literal : felt) -> (str : Str):
-
+func str_from_literal{range_check_ptr}(literal : felt) -> (str : Str):
     let len = 1
     let (arr : felt*) = alloc()
     assert arr[0] = literal
 
-    return ( Str (len,arr) )
+    return (Str(len, arr))
 end
 
 #
 # Create instance of Str that is empty
 #
-func str_empty  {range_check_ptr} (
-    ) -> (str : Str):
-
+func str_empty{range_check_ptr}() -> (str : Str):
     let len = 0
     let (arr : felt*) = alloc()
 
-    return ( Str (len,arr) )
+    return (Str(len, arr))
 end
 
 #
 # Convert felt (decimal fixed point) into ascii-encoded felt representing str(felt); return a literal
 # e.g. num_fp=15, scale_fp=1 => interpreted as '1.5', return (49)*(256**2) + (46)*256 + (53)
 #
-func literal_from_fp_number {range_check_ptr} (
-        num_fp : felt,
-        scale_fp : felt
-    ) -> (
-        literal : felt
-    ):
-
+func literal_from_fp_number{range_check_ptr}(num_fp : felt, scale_fp : felt) -> (literal : felt):
+    return (0)
 end
 
 #
 # Same as literal_from_fp_number but return a Str instance
 #
-func str_from_fp_number {range_check_ptr} (
-        num_fp : felt,
-        scale_fp : felt
-    ) -> (
-        str : Str
-    ):
+func str_from_fp_number{range_check_ptr}(num_fp : felt, scale_fp : felt) -> (str : Str):
+    let len = 0
+    let (arr : felt*) = alloc()
 
+    return (Str(len, arr))
 end
 
 #
@@ -182,8 +130,7 @@ end
 # e.g. 77 => interpreted as '77', return 55*256 + 55 = 14135
 # fail if needed more than 31 characters
 #
-func literal_from_number {range_check_ptr} (
-    num : felt) -> (literal : felt):
+func literal_from_number{range_check_ptr}(num : felt) -> (literal : felt):
     alloc_locals
 
     #
@@ -194,73 +141,53 @@ func literal_from_number {range_check_ptr} (
     end
 
     let (arr_ascii) = alloc()
-    let (
-        arr_ascii_len : felt
-    ) = _recurse_ascii_array_from_number (
-        remain = num,
-        arr_ascii_len = 0,
-        arr_ascii = arr_ascii
+    let (arr_ascii_len : felt) = _recurse_ascii_array_from_number(
+        remain=num, arr_ascii_len=0, arr_ascii=arr_ascii
     )
 
-    let (ascii) = _recurse_ascii_from_ascii_array_inverse (
-        ascii = 0,
-        len = arr_ascii_len,
-        arr = arr_ascii,
-        idx = 0
+    let (ascii) = _recurse_ascii_from_ascii_array_inverse(
+        ascii=0, len=arr_ascii_len, arr=arr_ascii, idx=0
     )
 
     return (ascii)
 end
 
-func _recurse_ascii_array_from_number {range_check_ptr} (
-        remain : felt,
-        arr_ascii_len : felt,
-        arr_ascii : felt*
-    ) -> (
-        arr_ascii_final_len : felt
-    ):
+func _recurse_ascii_array_from_number{range_check_ptr}(
+    remain : felt, arr_ascii_len : felt, arr_ascii : felt*
+) -> (arr_ascii_final_len : felt):
     alloc_locals
 
     if remain == 0:
         return (arr_ascii_len)
     end
 
-    let (remain_nxt, digit) = unsigned_div_rem (remain, 10)
-    let (ascii) = ascii_from_digit (digit)
+    let (remain_nxt, digit) = unsigned_div_rem(remain, 10)
+    let (ascii) = ascii_from_digit(digit)
     assert arr_ascii[arr_ascii_len] = ascii
 
     #
     # Tail recursion
     #
-    let (arr_ascii_final_len) = _recurse_ascii_array_from_number (
-        remain = remain_nxt,
-        arr_ascii_len = arr_ascii_len + 1,
-        arr_ascii = arr_ascii
+    let (arr_ascii_final_len) = _recurse_ascii_array_from_number(
+        remain=remain_nxt, arr_ascii_len=arr_ascii_len + 1, arr_ascii=arr_ascii
     )
     return (arr_ascii_final_len)
 end
 
-func _recurse_ascii_from_ascii_array_inverse {range_check_ptr} (
-        ascii : felt,
-        len : felt,
-        arr : felt*,
-        idx : felt
-    ) -> (ascii_final : felt):
-
+func _recurse_ascii_from_ascii_array_inverse{range_check_ptr}(
+    ascii : felt, len : felt, arr : felt*, idx : felt
+) -> (ascii_final : felt):
     if idx == len:
         return (ascii)
     end
 
-    let ascii_nxt = ascii * 256 + arr[len-idx-1]
+    let ascii_nxt = ascii * 256 + arr[len - idx - 1]
 
     #
     # Tail recursion
     #
-    let (ascii_final) = _recurse_ascii_from_ascii_array_inverse (
-        ascii = ascii_nxt,
-        len = len,
-        arr = arr,
-        idx = idx + 1
+    let (ascii_final) = _recurse_ascii_from_ascii_array_inverse(
+        ascii=ascii_nxt, len=len, arr=arr, idx=idx + 1
     )
     return (ascii_final)
 end
@@ -268,12 +195,11 @@ end
 #
 # Same as literal_from_number but return a Str instance
 #
-func str_from_number {range_check_ptr} (
-    num : felt) -> (str : Str):
+func str_from_number{range_check_ptr}(num : felt) -> (str : Str):
     alloc_locals
 
-    let (literal) = literal_from_number (num)
-    let (str : Str) = str_from_literal (literal)
+    let (literal) = literal_from_number(num)
+    let (str : Str) = str_from_literal(literal)
 
     return (str)
 end
@@ -285,13 +211,7 @@ end
 # e.g. num = 10, hexlen = 1 => returns 'A' in string
 # note: particularly useful for handling MIDI format
 #
-func str_hex_from_number {range_check_ptr} (
-        num : felt,
-        hexlen : felt
-    ) -> (
-        str : Str
-    ):
-
+func str_hex_from_number{range_check_ptr}(num : felt, hexlen : felt) -> (str : Str):
     #
     # Algorithm
     # 1. convert `num` in decimal to an array of Str(literal)
@@ -299,25 +219,26 @@ func str_hex_from_number {range_check_ptr} (
     # 2. run str_concat_array() on the array
     #
 
+    let len = 0
+    let (arr : felt*) = alloc()
 
-
+    return (Str(len, arr))
 end
 
 #
 # Get ascii in decimal value from given digit
 # note: does not check if input is indeed a digit
 #
-func ascii_from_digit (digit : felt) -> (ascii : felt):
+func ascii_from_digit(digit : felt) -> (ascii : felt):
     return (digit + '0')
 end
 
 #
 # Concat a Str with a literal, and return a Str
 #
-func str_concat_literal {range_check_ptr} (str : Str, literal : felt) -> (res : Str):
-
-    let (str_literal) = str_from_literal (literal)
-    let (res) = str_concat (str, str_literal)
+func str_concat_literal{range_check_ptr}(str : Str, literal : felt) -> (res : Str):
+    let (str_literal) = str_from_literal(literal)
+    let (res) = str_concat(str, str_literal)
 
     return (res)
 end
